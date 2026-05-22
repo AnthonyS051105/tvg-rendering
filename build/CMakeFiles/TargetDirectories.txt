@@ -1,0 +1,3 @@
+/home/anthony05/Coding/tvg-rendering/build/CMakeFiles/tvg-rendering.dir
+/home/anthony05/Coding/tvg-rendering/build/CMakeFiles/edit_cache.dir
+/home/anthony05/Coding/tvg-rendering/build/CMakeFiles/rebuild_cache.dir
