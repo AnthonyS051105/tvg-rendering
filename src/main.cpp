@@ -4,7 +4,7 @@
 // - Phong vertex + fragment shaders (with diffuse texture support)
 // - Model / View / Projection matrices
 // - Multiple material setups (keyboard 1-5)
-// Controls: WASD = orbit, Scroll = zoom, 1-5 = material preset, ESC = quit
+// Controls: 1-5 = material preset, 6-8 = view position, ESC = quit
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -262,20 +262,13 @@ static std::vector<MeshGroup> loadOBJ(const std::string& objPath)
 // ─── Camera / window state ───────────────────────────────────────────────────
 
 enum ViewState {
-    VIEW_FREE_ORBIT,       // WASD orbit (default)
-    VIEW_CINEMATIC_FRONT,  // Perspektif dramatis dari depan atas
-    VIEW_ARCHITECT_TOP,    // Top-down bird view
-    VIEW_CLOSEUP_SIDE,     // Close-up dari sudut kanan bawah
+    VIEW_CINEMATIC_FRONT,  // 6: Perspektif dramatis dari depan atas
+    VIEW_ARCHITECT_TOP,    // 7: Top-down bird view
+    VIEW_CLOSEUP_SIDE,     // 8: Close-up dari sudut kanan bawah
 };
 
-static float     camYaw      = 45.0f;
-static float     camPitch    = 20.0f;
-static float     camRadius   = 1200.0f;
-static glm::vec3 camTarget{0.0f};
-static bool      keys[GLFW_KEY_LAST + 1]{};
 static int       materialPreset = 1;
-static ViewState currentView    = VIEW_FREE_ORBIT;
-static bool      vKeyPressed    = false;
+static ViewState currentView    = VIEW_CINEMATIC_FRONT;
 
 // ─── Preset names & matID mapping ────────────────────────────────────────────
 // preset: 1=Mixed PNG, 2=Worn Leather & Walnut, 3=Natural Wood, 4=Industrial Metal, 5=Jade Exotic
@@ -304,33 +297,16 @@ static const std::map<std::string, int> matIDMap = {
 
 static void keyCallback(GLFWwindow* w, int key, int, int action, int)
 {
-    if (key >= 0 && key <= GLFW_KEY_LAST) {
-        if (action == GLFW_PRESS)   keys[key] = true;
-        if (action == GLFW_RELEASE) keys[key] = false;
-    }
     if (action == GLFW_PRESS) {
         if (key >= GLFW_KEY_1 && key <= GLFW_KEY_5) {
             materialPreset = key - GLFW_KEY_1 + 1;
             std::cout << "Material preset: " << presetNames[materialPreset - 1] << "\n";
         }
-        if (key == GLFW_KEY_V) {
-            if (!vKeyPressed) {
-                if      (currentView == VIEW_FREE_ORBIT)      { currentView = VIEW_CINEMATIC_FRONT; std::cout << "View: Cinematic Front\n"; }
-                else if (currentView == VIEW_CINEMATIC_FRONT) { currentView = VIEW_ARCHITECT_TOP;   std::cout << "View: Architect Top\n"; }
-                else if (currentView == VIEW_ARCHITECT_TOP)   { currentView = VIEW_CLOSEUP_SIDE;    std::cout << "View: Close-up Side\n"; }
-                else if (currentView == VIEW_CLOSEUP_SIDE)    { currentView = VIEW_FREE_ORBIT;      std::cout << "View: Free Orbit\n"; }
-                vKeyPressed = true;
-            }
-        }
+        if (key == GLFW_KEY_6) { currentView = VIEW_CINEMATIC_FRONT; std::cout << "View: Cinematic Front\n"; }
+        if (key == GLFW_KEY_7) { currentView = VIEW_ARCHITECT_TOP;   std::cout << "View: Architect Top\n"; }
+        if (key == GLFW_KEY_8) { currentView = VIEW_CLOSEUP_SIDE;    std::cout << "View: Close-up Side\n"; }
         if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(w, true);
     }
-    if (action == GLFW_RELEASE && key == GLFW_KEY_V) vKeyPressed = false;
-}
-
-static void scrollCallback(GLFWwindow*, double, double dy)
-{
-    camRadius -= (float)dy * 40.0f;
-    camRadius = glm::clamp(camRadius, 100.0f, 20000.0f);
 }
 
 static void framebufferCallback(GLFWwindow*, int w, int h)
@@ -347,15 +323,14 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(1280, 720,
-        "Dining Table – Phong Shading | 1-5:Material | WASD:Orbit | Scroll:Zoom",
+    GLFWwindow* window = glfwCreateWindow(800, 600,
+        "Dining Table – Phong Shading | 1-5:Material | 6-8:View | ESC:Quit",
         nullptr, nullptr);
     if (!window) { std::cerr << "Window creation failed\n"; glfwTerminate(); return -1; }
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
     glfwSetKeyCallback(window, keyCallback);
-    glfwSetScrollCallback(window, scrollCallback);
     glfwSetFramebufferSizeCallback(window, framebufferCallback);
 
     glewExperimental = GL_TRUE;
@@ -387,22 +362,9 @@ int main()
     auto groups = loadOBJ(modelDir + "dining-table.obj");
     std::cout << "Loaded " << groups.size() << " material groups.\n";
 
-    // Auto-center from bounding box
-    glm::vec3 bmin(1e9f), bmax(-1e9f);
-    for (auto& g : groups)
-        for (auto& v : g.vertices) {
-            bmin = glm::min(bmin, v.pos);
-            bmax = glm::max(bmax, v.pos);
-        }
-    glm::vec3 center = (bmin + bmax) * 0.5f;
-    float     extent = glm::length(bmax - bmin);
-    camTarget = center;
-    camRadius = extent * 0.8f;
+    std::cout << "Controls: 1-5=material preset | 6=Cinematic Front | 7=Architect Top | 8=Close-up Side | ESC=quit\n";
 
-    std::cout << "Controls: WASD=orbit | Scroll=zoom | V=cycle view | 1=Mixed-PNG 2=Leather&Walnut 3=Scandinavian 4=Luxury-Metal 5=Asian-Lacquer | ESC=quit\n";
-
-    // Light placed above-right of center
-    glm::vec3 lightPos = center + glm::vec3(extent * 0.5f, extent * 0.8f, extent * 0.5f);
+    glm::vec3 lightPos(2.0f, 5.0f, 3.0f);
 
     // Uniform locations (cached)
     GLint locModel     = glGetUniformLocation(prog, "model");
@@ -418,61 +380,35 @@ int main()
     GLint locMatID     = glGetUniformLocation(prog, "matID");
     GLint locHasTex    = glGetUniformLocation(prog, "hasTexture");
 
-    double lastTime = glfwGetTime();
-
     while (!glfwWindowShouldClose(window))
     {
-        double now = glfwGetTime();
-        float  dt  = (float)(now - lastTime);
-        lastTime   = now;
-
-        int fbW, fbH;
-        glfwGetFramebufferSize(window, &fbW, &fbH);
-        float aspect = (float)fbW / (float)std::max(fbH, 1);
-
         glm::mat4 model      = glm::mat4(1.0f);
         glm::mat4 view       = glm::mat4(1.0f);
         glm::mat4 projection = glm::mat4(1.0f);
         glm::vec3 camPos;
 
-        if (currentView == VIEW_FREE_ORBIT) {
-            // Orbit via WASD + scroll
-            const float speed = 60.0f;
-            if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])  camYaw   -= speed * dt;
-            if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT]) camYaw   += speed * dt;
-            if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])    camPitch += speed * dt;
-            if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])  camPitch -= speed * dt;
-            camPitch = glm::clamp(camPitch, -89.0f, 89.0f);
-
-            float yawR   = glm::radians(camYaw);
-            float pitchR = glm::radians(camPitch);
-            camPos = camTarget + camRadius * glm::vec3(
-                cos(pitchR) * sin(yawR),
-                sin(pitchR),
-                cos(pitchR) * cos(yawR));
-
-            view       = glm::lookAt(camPos, camTarget, glm::vec3(0, 1, 0));
-            projection = glm::perspective(glm::radians(45.0f), aspect, 1.0f, extent * 10.0f);
-        }
-        else if (currentView == VIEW_CINEMATIC_FRONT) {
-            // Perspektif dramatis dari depan atas, objek miring proporsional
-            camPos = center + glm::vec3(0.0f, extent * 0.5f, extent * 0.9f);
-            view   = glm::lookAt(camPos, center, glm::vec3(0, 1, 0));
-            model  = glm::rotate(model, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-            projection = glm::perspective(glm::radians(45.0f), aspect, 1.0f, extent * 10.0f);
+        if (currentView == VIEW_CINEMATIC_FRONT) {
+            camPos     = glm::vec3(0.0f, 3.0f, 8.0f);
+            view       = glm::lookAt(camPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            model      = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
+            model      = glm::rotate(model, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            model      = glm::scale(model, glm::vec3(0.0015f, 0.0015f, 0.0015f));
+            projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 500.0f);
         }
         else if (currentView == VIEW_ARCHITECT_TOP) {
-            // Top-down bird view
-            camPos = center + glm::vec3(0.0f, extent * 1.2f, 0.001f);
-            view   = glm::lookAt(camPos, center, glm::vec3(0, 1, 0));
-            projection = glm::perspective(glm::radians(60.0f), aspect, 1.0f, extent * 10.0f);
+            camPos     = glm::vec3(0.0f, 8.0f, 0.001f);
+            view       = glm::lookAt(camPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            model      = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+            model      = glm::scale(model, glm::vec3(0.0015f, 0.0015f, 0.0015f));
+            projection = glm::perspective(glm::radians(60.0f), 800.0f / 600.0f, 0.1f, 500.0f);
         }
         else if (currentView == VIEW_CLOSEUP_SIDE) {
-            // Close-up dari sudut kanan bawah
-            camPos = center + glm::vec3(extent * 0.6f, extent * 0.1f, extent * 0.25f);
-            view   = glm::lookAt(camPos, center + glm::vec3(0, -extent * 0.05f, 0), glm::vec3(0, 1, 0));
-            model  = glm::rotate(model, glm::radians(15.0f), glm::vec3(1.0f, 0.0f, 1.0f));
-            projection = glm::perspective(glm::radians(30.0f), aspect, 1.0f, extent * 10.0f);
+            camPos     = glm::vec3(5.0f, 0.5f, 2.0f);
+            view       = glm::lookAt(camPos, glm::vec3(0.0f, -0.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            model      = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f));
+            model      = glm::rotate(model, glm::radians(15.0f), glm::vec3(1.0f, 0.0f, 1.0f));
+            model      = glm::scale(model, glm::vec3(0.0015f, 0.0015f, 0.0015f));
+            projection = glm::perspective(glm::radians(30.0f), 800.0f / 600.0f, 0.1f, 500.0f);
         }
 
         glClearColor(0.12f, 0.12f, 0.15f, 1.0f);
