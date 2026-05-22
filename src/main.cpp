@@ -270,6 +270,37 @@ enum ViewState {
 static int       materialPreset = 1;
 static ViewState currentView    = VIEW_CINEMATIC_FRONT;
 
+// ─── Blinn-Phong lighting mode ───────────────────────────────────────────────
+//
+// Setiap mode menetapkan nilai tetap (hardcode) untuk ambient, diffuse, specular.
+// shinDelta ditambahkan ke mat.shininess per-material di shader.
+//
+//  Key | Mode
+//  9   | Ambient only
+//  0   | Diffuse only
+//  A   | Specular only
+//  S   | Shininess tinggi (sharp highlight)
+//  B   | Full Blinn-Phong (semua komponen, default)
+//  N   | Plain (tanpa Phong — semua nol, hanya warna mentah)
+
+struct PhongParams {
+    float       amb;
+    float       diff;
+    float       spec;
+    float       shin;    // shinDelta — ditambah ke mat.shininess di shader
+    bool        plain;   // true = skip Phong, tampilkan warna mentah
+    const char* label;
+};
+
+static const PhongParams PHONG_AMBIENT_ONLY  { 0.50f, 0.00f, 0.00f,   0.0f, false, "Ambient Only"            };
+static const PhongParams PHONG_DIFFUSE_ONLY  { 0.00f, 0.80f, 0.00f,   0.0f, false, "Diffuse Only"            };
+static const PhongParams PHONG_SPECULAR_ONLY { 0.00f, 0.00f, 1.00f,  64.0f, false, "Specular Only"           };
+static const PhongParams PHONG_SHININESS     { 0.15f, 0.70f, 1.00f, 128.0f, false, "High Shininess"          };
+static const PhongParams PHONG_FULL          { 0.30f, 1.00f, 1.00f,   0.0f, false, "Full Blinn-Phong (default)" };
+static const PhongParams PHONG_PLAIN         { 0.00f, 0.00f, 0.00f,   0.0f, true,  "Plain (no lighting)"     };
+
+static PhongParams phong = PHONG_FULL;
+
 // ─── Preset names & matID mapping ────────────────────────────────────────────
 // preset: 1=Mixed PNG, 2=Worn Leather & Walnut, 3=Natural Wood, 4=Industrial Metal, 5=Jade Exotic
 // matID:  0=qita(meja), 1=lvzhi(taplak), 2=zhuoyi(kursi),
@@ -298,14 +329,38 @@ static const std::map<std::string, int> matIDMap = {
 static void keyCallback(GLFWwindow* w, int key, int, int action, int)
 {
     if (action == GLFW_PRESS) {
+        // ── Material presets ───────────────────────────────────────────────────
         if (key >= GLFW_KEY_1 && key <= GLFW_KEY_5) {
             materialPreset = key - GLFW_KEY_1 + 1;
             std::cout << "Material preset: " << presetNames[materialPreset - 1] << "\n";
         }
+
+        // ── View presets ───────────────────────────────────────────────────────
         if (key == GLFW_KEY_6) { currentView = VIEW_CINEMATIC_FRONT; std::cout << "View: Cinematic Front\n"; }
         if (key == GLFW_KEY_7) { currentView = VIEW_ARCHITECT_TOP;   std::cout << "View: Architect Top\n"; }
         if (key == GLFW_KEY_8) { currentView = VIEW_CLOSEUP_SIDE;    std::cout << "View: Close-up Side\n"; }
-        if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(w, true);
+
+        // ── Blinn-Phong mode controls ──────────────────────────────────────────
+        if (action == GLFW_PRESS) {
+            const PhongParams* next = nullptr;
+            if (key == GLFW_KEY_9) next = &PHONG_AMBIENT_ONLY;
+            if (key == GLFW_KEY_0) next = &PHONG_DIFFUSE_ONLY;
+            if (key == GLFW_KEY_A) next = &PHONG_SPECULAR_ONLY;
+            if (key == GLFW_KEY_S) next = &PHONG_SHININESS;
+            if (key == GLFW_KEY_B) next = &PHONG_FULL;
+            if (key == GLFW_KEY_N) next = &PHONG_PLAIN;
+            if (next) {
+                phong = *next;
+                std::cout << "Phong mode: " << phong.label
+                          << "  [amb=" << phong.amb
+                          << " diff=" << phong.diff
+                          << " spec=" << phong.spec
+                          << " shinDelta=" << phong.shin << "]\n";
+            }
+        }
+
+        if (key == GLFW_KEY_ESCAPE)
+            glfwSetWindowShouldClose(w, true);
     }
 }
 
@@ -362,7 +417,19 @@ int main()
     auto groups = loadOBJ(modelDir + "dining-table.obj");
     std::cout << "Loaded " << groups.size() << " material groups.\n";
 
-    std::cout << "Controls: 1-5=material preset | 6=Cinematic Front | 7=Architect Top | 8=Close-up Side | ESC=quit\n";
+    std::cout << "Controls:\n"
+              << "  1-5 = Material preset\n"
+              << "  6   = View: Cinematic Front\n"
+              << "  7   = View: Architect Top\n"
+              << "  8   = View: Close-up Side\n"
+              << "  --- Blinn-Phong modes ---\n"
+              << "  9   = Ambient only  (amb=0.50)\n"
+              << "  0   = Diffuse only  (diff=0.80)\n"
+              << "  A   = Specular only (spec=1.00, shin+64)\n"
+              << "  S   = High Shininess (shin+128)\n"
+              << "  B   = Full Blinn-Phong — default\n"
+              << "  N   = Plain (no lighting)\n"
+              << "  ESC = Quit\n";
 
     glm::vec3 lightPos(2.0f, 5.0f, 3.0f);
 
@@ -374,8 +441,10 @@ int main()
     GLint locLightPos  = glGetUniformLocation(prog, "lightPos");
     GLint locLightAmb  = glGetUniformLocation(prog, "lightAmb");
     GLint locLightDiff = glGetUniformLocation(prog, "lightDiff");
-    GLint locLightSpec = glGetUniformLocation(prog, "lightSpec");
-    GLint locDiffMap   = glGetUniformLocation(prog, "diffuseMap");
+    GLint locLightSpec  = glGetUniformLocation(prog, "lightSpec");
+    GLint locShinDelta  = glGetUniformLocation(prog, "shinDelta");
+    GLint locPlainMode  = glGetUniformLocation(prog, "plainMode");
+    GLint locDiffMap    = glGetUniformLocation(prog, "diffuseMap");
     GLint locPreset    = glGetUniformLocation(prog, "preset");
     GLint locMatID     = glGetUniformLocation(prog, "matID");
     GLint locHasTex    = glGetUniformLocation(prog, "hasTexture");
@@ -421,9 +490,11 @@ int main()
         glUniform3fv(locViewPos, 1, glm::value_ptr(camPos));
 
         glUniform3fv(locLightPos,  1, glm::value_ptr(lightPos));
-        glUniform3f(locLightAmb,  0.30f, 0.30f, 0.30f);
-        glUniform3f(locLightDiff, 1.00f, 1.00f, 1.00f);
-        glUniform3f(locLightSpec, 1.00f, 1.00f, 1.00f);
+        glUniform3f(locLightAmb,  phong.amb,  phong.amb,  phong.amb);
+        glUniform3f(locLightDiff, phong.diff, phong.diff, phong.diff);
+        glUniform3f(locLightSpec, phong.spec, phong.spec, phong.spec);
+        glUniform1f(locShinDelta, phong.shin);
+        glUniform1i(locPlainMode, phong.plain ? 1 : 0);
 
         glUniform1i(locDiffMap, 0); // texture unit 0
         glUniform1i(locPreset, materialPreset);

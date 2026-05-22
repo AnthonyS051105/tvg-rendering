@@ -13,11 +13,13 @@ uniform int       matID;
 uniform int       hasTexture;
 uniform sampler2D diffuseMap;
 
-uniform vec3 viewPos;
-uniform vec3 lightPos;
-uniform vec3 lightAmb;
-uniform vec3 lightDiff;
-uniform vec3 lightSpec;
+uniform vec3  viewPos;
+uniform vec3  lightPos;
+uniform vec3  lightAmb;
+uniform vec3  lightDiff;
+uniform vec3  lightSpec;
+uniform float shinDelta;  // shininess delta dari mode keyboard (S, A, dll)
+uniform int   plainMode;  // 1 = tampilkan warna mentah tanpa Phong (key N)
 
 // ── Noise helpers ─────────────────────────────────────────────────────────────
 
@@ -436,10 +438,15 @@ void main()
 {
     MatResult mat = resolveMaterial();
 
+    // Mode Plain: tampilkan warna diffuse mentah tanpa perhitungan Phong
+    if (plainMode == 1) {
+        FragColor = vec4(mat.diffuse, 1.0);
+        return;
+    }
+
     vec3  norm     = normalize(Normal);
     vec3  lightDir = normalize(lightPos - FragPos);
     vec3  viewDir  = normalize(viewPos - FragPos);
-    vec3  reflDir  = reflect(-lightDir, norm);
 
     // Ambient dengan per-material scale (velvet/lacquer lebih gelap di ambient)
     vec3  ambient  = lightAmb * mat.diffuse * 0.38 * mat.ambScale;
@@ -448,10 +455,11 @@ void main()
     float diff     = max(dot(norm, lightDir), 0.0);
     vec3  diffuse  = lightDiff * diff * mat.diffuse;
 
-    // Specular — Blinn-Phong half-vector untuk hasil lebih natural
-    vec3  halfDir  = normalize(lightDir + viewDir);
-    float spec     = pow(max(dot(norm, halfDir), 0.0), mat.shininess);
-    vec3  specular = lightSpec * spec * mat.specular;
+    // Specular — Blinn-Phong half-vector
+    vec3  halfDir   = normalize(lightDir + viewDir);
+    float totalShin = max(1.0, mat.shininess + shinDelta);
+    float spec      = pow(max(dot(norm, halfDir), 0.0), totalShin);
+    vec3  specular  = lightSpec * spec * mat.specular;
 
     FragColor = vec4(ambient + diffuse + specular, 1.0);
 }
