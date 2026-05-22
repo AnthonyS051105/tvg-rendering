@@ -1,62 +1,98 @@
 # Blender 5.1.1 MTL File: 'None'
 # www.blender.org
+# Textures mapped from GLTF embedded exports:
+#   base color  : gltf_embedded_N.png
+#   normal map  : gltf_embedded_N+2.png  (avg R~128, G~128, B~255)
+#   roughness   : gltf_embedded_N+1@channels=R.png
+#   metallic    : gltf_embedded_N+1@channels=B.png
 
+# ── boli (glass / transparent parts) ─────────────────────────────────────────
+# Textures: 0=base(512), 1=rough/metal(512), 2=normal(512)
 newmtl boli
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
+Ns 500.000000
+Ka 0.200000 0.200000 0.200000
+Kd 0.850000 0.850000 0.900000
+Ks 0.950000 0.950000 1.000000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
-d 1.000000
+d 0.400000
 illum 2
+map_Kd gltf_embedded_0.png
+map_Ks gltf_embedded_1@channels=R.png
+map_Bump gltf_embedded_2.png
+map_d gltf_embedded_0.png
 
+# ── lvzhi (table surface / tablecloth) ───────────────────────────────────────
+# Textures: 3=base(2048), 4=rough/metal(2048), 5=normal(2048)
 newmtl lvzhi
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
+Ns 80.000000
+Ka 0.100000 0.100000 0.100000
 Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
+Ks 0.300000 0.300000 0.300000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
+map_Kd gltf_embedded_3.png
+map_Ks gltf_embedded_4@channels=R.png
+map_Bump gltf_embedded_5.png
 
+# ── material (dark green plant / decoration) ──────────────────────────────────
+# Textures: 6=base(1024), 7=rough/metal(1024), 8=normal(1024)
 newmtl material
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
+Ns 40.000000
+Ka 0.050000 0.080000 0.050000
+Kd 0.180000 0.240000 0.160000
+Ks 0.100000 0.120000 0.100000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
+map_Kd gltf_embedded_6.png
+map_Ks gltf_embedded_7@channels=R.png
+map_Bump gltf_embedded_8.png
 
+# ── niunai (white ceramic / milk-colored parts) ───────────────────────────────
+# Textures: 9=base(512,white), 10=rough/metal(512), 11=normal(512)
 newmtl niunai
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
+Ns 200.000000
+Ka 0.300000 0.300000 0.300000
+Kd 1.000000 1.000000 1.000000
+Ks 0.600000 0.600000 0.600000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
+map_Kd gltf_embedded_9.png
+map_Ks gltf_embedded_10@channels=R.png
+map_Bump gltf_embedded_11.png
 
+# ── qita (other parts / warm wood tones) ─────────────────────────────────────
+# Textures: 12=base(2048,beige/warm), 13=rough/metal(2048), 14=normal(2048)
 newmtl qita
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
+Ns 120.000000
+Ka 0.150000 0.120000 0.100000
 Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
+Ks 0.400000 0.350000 0.300000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
+map_Kd gltf_embedded_12.png
+map_Ks gltf_embedded_13@channels=R.png
+map_Bump gltf_embedded_14.png
 
+# ── zhuoyi (chair / seat parts, gray tones) ───────────────────────────────────
+# Textures: 15=base(2048,gray), 16=rough/metal(2048), 17=normal(2048)
 newmtl zhuoyi
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
+Ns 60.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.650000 0.650000 0.650000
+Ks 0.250000 0.250000 0.250000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
+map_Kd gltf_embedded_15.png
+map_Ks gltf_embedded_16@channels=R.png
+map_Bump gltf_embedded_17.png
