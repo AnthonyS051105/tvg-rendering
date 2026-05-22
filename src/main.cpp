@@ -9,16 +9,25 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
 #include "Shader.h"
 
 struct Vertex {
     glm::vec3 Position;
     glm::vec3 Normal;
 };
+
+bool cKeyPressed = false;
+bool vKeyPressed = false;
+bool isPerspective = true;
+
+// Definisikan 3 kombinasi tampilan yang berbeda
+enum ViewState {
+    VIEW_CINEMATIC_FRONT,  // Tampilan 1: Perspektif dramatis dari depan atas, objek miring proporsional
+    VIEW_ARCHITECT_TOP,    // Tampilan 2: Tampilan teknis tegak lurus dari atas (Top-down Bird View)
+    VIEW_CLOSEUP_SIDE      // Tampilan 3: Kamera sangat dekat dari sudut kanan bawah menyorot detail samping
+};
+
+ViewState currentView = VIEW_CINEMATIC_FRONT;
 
 struct Mesh {
     unsigned int VAO, VBO;
@@ -83,7 +92,7 @@ bool loadModel(const std::string& objPath, const std::string& mtlSearchPath, std
         currentMesh.hasMaterial = false;
 
         if (!shapes[s].mesh.material_ids.empty() && shapes[s].mesh.material_ids[0] >= 0) {
-            int mat_id = shapes[s].mesh.material_ids[id];
+            int mat_id = shapes[s].mesh.material_ids[0]; // Menggunakan indeks [0] poligon pertama komponen agar tidak crash
             if (mat_id < materials.size()) {
                 currentMesh.material = materials[mat_id];
                 currentMesh.hasMaterial = true;
@@ -114,7 +123,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Tugas OpenGL - Parsing MTL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(800, 600, "Tugas OpenGL", NULL, NULL);
     if (window == NULL) {
         std::cout << "Gagal membuat GLFW window" << std::endl;
         glfwTerminate();
@@ -144,6 +153,18 @@ int main() {
         if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(window, true);
 
+        if (glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS) {
+            if (!vKeyPressed) {
+                if (currentView == VIEW_CINEMATIC_FRONT) currentView = VIEW_ARCHITECT_TOP;
+                else if (currentView == VIEW_ARCHITECT_TOP) currentView = VIEW_CLOSEUP_SIDE;
+                else if (currentView == VIEW_CLOSEUP_SIDE) currentView = VIEW_CINEMATIC_FRONT;
+                
+                vKeyPressed = true;
+            }
+        } else if (glfwGetKey(window, GLFW_KEY_V) == GLFW_RELEASE) {
+            vKeyPressed = false;
+        }
+
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -151,15 +172,43 @@ int main() {
 
         ourShader.setVec3("lightColor",  1.0f, 1.0f, 1.0f);
         ourShader.setVec3("lightPos",    2.0f, 5.0f, 3.0f);
-        ourShader.setVec3("viewPos",     0.0f, 3.0f, 8.0f);
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 500.0f);
-        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 3.0f, 8.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         glm::mat4 model = glm::mat4(1.0f);
-        
-        model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f)); 
-        model = glm::rotate(model, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)); 
-        model = glm::scale(model, glm::vec3(0.0015f, 0.0015f, 0.0015f)); 
+        glm::mat4 view = glm::mat4(1.0f);
+        glm::mat4 projection = glm::mat4(1.0f);
+        glm::vec3 cameraPos;
+
+        if (currentView == VIEW_CINEMATIC_FRONT) {
+            cameraPos = glm::vec3(0.0f, 3.0f, 8.0f);
+            view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            
+            model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f)); 
+            model = glm::rotate(model, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)); 
+            model = glm::scale(model, glm::vec3(0.0015f, 0.0015f, 0.0015f)); 
+
+            projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 500.0f);
+        } 
+        else if (currentView == VIEW_ARCHITECT_TOP) {
+            cameraPos = glm::vec3(0.0f, 8.0f, 0.001f);
+            view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            
+            model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); 
+            model = glm::scale(model, glm::vec3(0.0015f, 0.0015f, 0.0015f)); 
+
+            projection = glm::perspective(glm::radians(60.0f), 800.0f / 600.0f, 0.1f, 500.0f);
+        } 
+        else if (currentView == VIEW_CLOSEUP_SIDE) {
+            cameraPos = glm::vec3(5.0f, 0.5f, 2.0f);
+            view = glm::lookAt(cameraPos, glm::vec3(0.0f, -0.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            
+            model = glm::translate(model, glm::vec3(0.0f, -0.5f, 0.0f)); 
+            model = glm::rotate(model, glm::radians(15.0f), glm::vec3(1.0f, 0.0f, 1.0f)); 
+            model = glm::scale(model, glm::vec3(0.0015f, 0.0015f, 0.0015f));
+
+            projection = glm::perspective(glm::radians(30.0f), 800.0f / 600.0f, 0.1f, 500.0f);
+        }
+
+        ourShader.setVec3("viewPos", cameraPos);
 
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
