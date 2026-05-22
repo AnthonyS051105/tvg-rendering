@@ -268,30 +268,27 @@ static glm::vec3 camTarget{0.0f};
 static bool     keys[GLFW_KEY_LAST + 1]{};
 static int      materialPreset = 1;
 
-// ─── Material presets ─────────────────────────────────────────────────────────
-// preset 1 = MTL + PNG texture (from .mtl file)
-// preset 2 = Wood (procedural oak rings)
-// preset 3 = Marble (procedural white veins)
-// preset 4 = Plastic (procedural blue matte)
-// preset 5 = Jade (procedural layered green)
+// ─── Preset names & matID mapping ────────────────────────────────────────────
+// preset: 1=Mixed PNG, 2=Worn Leather & Walnut, 3=Natural Wood, 4=Industrial Metal, 5=Jade Exotic
+// matID:  0=qita(meja), 1=lvzhi(taplak), 2=zhuoyi(kursi),
+//         3=material(bunga), 4=boli(mangkuk), 5=niunai(piring/vas)
 
-struct PhongPreset {
-    const char* name;
-    glm::vec3   Ka;   // ambient tint
-    glm::vec3   Ks;   // specular color
-    float       shininess;
+static const char* presetNames[] = {
+    "Mixed PNG Textures",
+    "Worn Leather & Walnut",
+    "Scandinavian Modern",
+    "Contemporary Luxury Metal",
+    "East Asian Lacquerware",
 };
-static const PhongPreset presets[] = {
-    // 1 – MTL + texture: ambient/specular read from MTL per group
-    {"MTL + Texture",  {0.20f, 0.18f, 0.15f}, {0.30f, 0.25f, 0.20f},  32.0f},
-    // 2 – Oak wood: warm specular, medium gloss
-    {"Wood (Oak)",     {0.12f, 0.07f, 0.03f}, {0.35f, 0.22f, 0.10f},  48.0f},
-    // 3 – White marble: cold bright specular, high gloss
-    {"Marble",         {0.18f, 0.18f, 0.18f}, {0.90f, 0.90f, 0.90f}, 192.0f},
-    // 4 – Blue matte plastic: low specular
-    {"Plastic (Blue)", {0.05f, 0.10f, 0.20f}, {0.15f, 0.15f, 0.20f},  12.0f},
-    // 5 – Jade: slight satin sheen
-    {"Jade",           {0.04f, 0.14f, 0.08f}, {0.40f, 0.60f, 0.45f},  64.0f},
+
+// Map material name string → matID integer (sent as uniform to shader)
+static const std::map<std::string, int> matIDMap = {
+    {"qita",     0},
+    {"lvzhi",    1},
+    {"zhuoyi",   2},
+    {"material", 3},
+    {"boli",     4},
+    {"niunai",   5},
 };
 
 // ─── Callbacks ───────────────────────────────────────────────────────────────
@@ -305,7 +302,7 @@ static void keyCallback(GLFWwindow* w, int key, int, int action, int)
     if (action == GLFW_PRESS) {
         if (key >= GLFW_KEY_1 && key <= GLFW_KEY_5) {
             materialPreset = key - GLFW_KEY_1 + 1;
-            std::cout << "Material preset: " << presets[materialPreset - 1].name << "\n";
+            std::cout << "Material preset: " << presetNames[materialPreset - 1] << "\n";
         }
         if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(w, true);
     }
@@ -355,18 +352,16 @@ int main()
 
     GLuint prog = createProgram(shaderDir + "vertex.glsl", shaderDir + "fragment.glsl");
 
-    // Load MTL
-    auto mtlMats = loadMTL(modelDir + "dining-table.mtl", modelDir);
-
-    // Pre-load all diffuse textures
+    // Preset 1: PNG textures per material group (Mixed PNG)
+    // matID: 0=qita, 1=lvzhi, 2=zhuoyi, 3=material(bunga), 4=boli, 5=niunai
     std::map<std::string, GLuint> textures;
-    for (auto& [name, mat] : mtlMats) {
-        if (!mat.map_Kd.empty()) {
-            textures[name] = loadTexture(mat.map_Kd);
-            std::cout << "Loaded texture for [" << name << "]: " << mat.map_Kd
-                      << " → id=" << textures[name] << "\n";
-        }
-    }
+    textures["qita"]     = loadTexture(modelDir + "gltf_embedded_12.png");   // beige atlas
+    textures["lvzhi"]    = loadTexture(modelDir + "gltf_embedded_3.png");    // dark grid fabric
+    textures["zhuoyi"]   = loadTexture(modelDir + "gltf_embedded_15.png");   // white marble/ceramic
+    textures["material"] = loadTexture(modelDir + "gltf_embedded_6.png");    // plant black-green
+    textures["boli"]     = loadTexture(modelDir + "gltf_embedded_12.png");   // reuse beige for dark tint
+    textures["niunai"]   = loadTexture(modelDir + "gltf_embedded_15.png");   // white porcelain
+    std::cout << "Loaded preset-1 (Mixed PNG) textures.\n";
 
     // Load OBJ
     std::cout << "Loading OBJ model...\n";
@@ -385,26 +380,24 @@ int main()
     camTarget = center;
     camRadius = extent * 0.8f;
 
-    std::cout << "Controls: WASD=orbit | Scroll=zoom | 1=MTL+Tex 2=Wood 3=Marble 4=Plastic 5=Jade | ESC=quit\n";
+    std::cout << "Controls: WASD=orbit | Scroll=zoom | 1=Mixed-PNG 2=Leather&Walnut 3=Scandinavian 4=Luxury-Metal 5=Asian-Lacquer | ESC=quit\n";
 
     // Light placed above-right of center
     glm::vec3 lightPos = center + glm::vec3(extent * 0.5f, extent * 0.8f, extent * 0.5f);
 
     // Uniform locations (cached)
-    GLint locModel      = glGetUniformLocation(prog, "model");
-    GLint locView       = glGetUniformLocation(prog, "view");
-    GLint locProj       = glGetUniformLocation(prog, "projection");
-    GLint locViewPos    = glGetUniformLocation(prog, "viewPos");
-    GLint locLightPos   = glGetUniformLocation(prog, "light.position");
-    GLint locLightAmb   = glGetUniformLocation(prog, "light.ambient");
-    GLint locLightDiff  = glGetUniformLocation(prog, "light.diffuse");
-    GLint locLightSpec  = glGetUniformLocation(prog, "light.specular");
-    GLint locMatAmb     = glGetUniformLocation(prog, "material.ambient");
-    GLint locMatSpec    = glGetUniformLocation(prog, "material.specular");
-    GLint locMatShine   = glGetUniformLocation(prog, "material.shininess");
-    GLint locDiffMap    = glGetUniformLocation(prog, "diffuseMap");
-    GLint locPreset     = glGetUniformLocation(prog, "preset");
-    GLint locHasTex     = glGetUniformLocation(prog, "hasTexture");
+    GLint locModel     = glGetUniformLocation(prog, "model");
+    GLint locView      = glGetUniformLocation(prog, "view");
+    GLint locProj      = glGetUniformLocation(prog, "projection");
+    GLint locViewPos   = glGetUniformLocation(prog, "viewPos");
+    GLint locLightPos  = glGetUniformLocation(prog, "lightPos");
+    GLint locLightAmb  = glGetUniformLocation(prog, "lightAmb");
+    GLint locLightDiff = glGetUniformLocation(prog, "lightDiff");
+    GLint locLightSpec = glGetUniformLocation(prog, "lightSpec");
+    GLint locDiffMap   = glGetUniformLocation(prog, "diffuseMap");
+    GLint locPreset    = glGetUniformLocation(prog, "preset");
+    GLint locMatID     = glGetUniformLocation(prog, "matID");
+    GLint locHasTex    = glGetUniformLocation(prog, "hasTexture");
 
     double lastTime = glfwGetTime();
 
@@ -447,7 +440,7 @@ int main()
         glUniform3fv(locViewPos, 1, glm::value_ptr(camPos));
 
         glUniform3fv(locLightPos,  1, glm::value_ptr(lightPos));
-        glUniform3f(locLightAmb,  0.35f, 0.35f, 0.35f);
+        glUniform3f(locLightAmb,  0.30f, 0.30f, 0.30f);
         glUniform3f(locLightDiff, 1.00f, 1.00f, 1.00f);
         glUniform3f(locLightSpec, 1.00f, 1.00f, 1.00f);
 
@@ -457,31 +450,18 @@ int main()
         for (auto& g : groups) {
             if (g.vao == 0 || g.vertices.empty()) continue;
 
-            glm::vec3 Ka, Ks;
-            float     shine;
-            bool      hasTex = false;
-            GLuint    texID  = 0;
+            int    mid    = matIDMap.count(g.material) ? matIDMap.at(g.material) : 0;
+            bool   hasTex = false;
+            GLuint texID  = 0;
 
-            const auto& p = presets[materialPreset - 1];
-            Ka    = p.Ka;
-            Ks    = p.Ks;
-            shine = p.shininess;
-
-            if (materialPreset == 1 && mtlMats.count(g.material)) {
-                const auto& m = mtlMats.at(g.material);
-                Ka    = m.Ka;
-                Ks    = m.Ks;
-                shine = m.Ns;
-                if (textures.count(g.material) && textures.at(g.material) != 0) {
-                    hasTex = true;
-                    texID  = textures.at(g.material);
-                }
+            // Preset 1: PNG per-material
+            if (materialPreset == 1 && textures.count(g.material) && textures.at(g.material) != 0) {
+                hasTex = true;
+                texID  = textures.at(g.material);
             }
 
-            glUniform3fv(locMatAmb,  1, glm::value_ptr(Ka));
-            glUniform3fv(locMatSpec, 1, glm::value_ptr(Ks));
-            glUniform1f(locMatShine, shine);
-            glUniform1i(locHasTex,   hasTex ? 1 : 0);
+            glUniform1i(locMatID,  mid);
+            glUniform1i(locHasTex, hasTex ? 1 : 0);
 
             if (hasTex) {
                 glActiveTexture(GL_TEXTURE0);
