@@ -31,7 +31,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-bool loadModel(const std::string& objPath, const std::string& mtlSearchPath, std::vector<Mesh>& outMeshes) {
+bool loadModel(const std::string& objPath, const std::string& mtlSearchPath, std::vector<Mesh>& outMeshes, int id = 0) {
     tinyobj::ObjReaderConfig reader_config;
     reader_config.mtl_search_path = mtlSearchPath;
 
@@ -83,7 +83,7 @@ bool loadModel(const std::string& objPath, const std::string& mtlSearchPath, std
         currentMesh.hasMaterial = false;
 
         if (!shapes[s].mesh.material_ids.empty() && shapes[s].mesh.material_ids[0] >= 0) {
-            int mat_id = shapes[s].mesh.material_ids[0];
+            int mat_id = shapes[s].mesh.material_ids[id];
             if (mat_id < materials.size()) {
                 currentMesh.material = materials[mat_id];
                 currentMesh.hasMaterial = true;
@@ -151,7 +151,7 @@ int main() {
 
         ourShader.setVec3("lightColor",  1.0f, 1.0f, 1.0f);
         ourShader.setVec3("lightPos",    2.0f, 5.0f, 3.0f);
-        ourShader.setVec3("viewPos",     0.0f, 3.0f, 8.0f); // Menaikkan posisi Y agar pandangan kamera lebih proporsional
+        ourShader.setVec3("viewPos",     0.0f, 3.0f, 8.0f);
 
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 500.0f);
         glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 3.0f, 8.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
