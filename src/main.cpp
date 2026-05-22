@@ -261,12 +261,21 @@ static std::vector<MeshGroup> loadOBJ(const std::string& objPath)
 
 // ─── Camera / window state ───────────────────────────────────────────────────
 
-static float    camYaw    = 45.0f;
-static float    camPitch  = 20.0f;
-static float    camRadius = 1200.0f;
+enum ViewState {
+    VIEW_FREE_ORBIT,       // WASD orbit (default)
+    VIEW_CINEMATIC_FRONT,  // Perspektif dramatis dari depan atas
+    VIEW_ARCHITECT_TOP,    // Top-down bird view
+    VIEW_CLOSEUP_SIDE,     // Close-up dari sudut kanan bawah
+};
+
+static float     camYaw      = 45.0f;
+static float     camPitch    = 20.0f;
+static float     camRadius   = 1200.0f;
 static glm::vec3 camTarget{0.0f};
-static bool     keys[GLFW_KEY_LAST + 1]{};
-static int      materialPreset = 1;
+static bool      keys[GLFW_KEY_LAST + 1]{};
+static int       materialPreset = 1;
+static ViewState currentView    = VIEW_FREE_ORBIT;
+static bool      vKeyPressed    = false;
 
 // ─── Preset names & matID mapping ────────────────────────────────────────────
 // preset: 1=Mixed PNG, 2=Worn Leather & Walnut, 3=Natural Wood, 4=Industrial Metal, 5=Jade Exotic
@@ -304,8 +313,18 @@ static void keyCallback(GLFWwindow* w, int key, int, int action, int)
             materialPreset = key - GLFW_KEY_1 + 1;
             std::cout << "Material preset: " << presetNames[materialPreset - 1] << "\n";
         }
+        if (key == GLFW_KEY_V) {
+            if (!vKeyPressed) {
+                if      (currentView == VIEW_FREE_ORBIT)      { currentView = VIEW_CINEMATIC_FRONT; std::cout << "View: Cinematic Front\n"; }
+                else if (currentView == VIEW_CINEMATIC_FRONT) { currentView = VIEW_ARCHITECT_TOP;   std::cout << "View: Architect Top\n"; }
+                else if (currentView == VIEW_ARCHITECT_TOP)   { currentView = VIEW_CLOSEUP_SIDE;    std::cout << "View: Close-up Side\n"; }
+                else if (currentView == VIEW_CLOSEUP_SIDE)    { currentView = VIEW_FREE_ORBIT;      std::cout << "View: Free Orbit\n"; }
+                vKeyPressed = true;
+            }
+        }
         if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(w, true);
     }
+    if (action == GLFW_RELEASE && key == GLFW_KEY_V) vKeyPressed = false;
 }
 
 static void scrollCallback(GLFWwindow*, double, double dy)
@@ -380,7 +399,7 @@ int main()
     camTarget = center;
     camRadius = extent * 0.8f;
 
-    std::cout << "Controls: WASD=orbit | Scroll=zoom | 1=Mixed-PNG 2=Leather&Walnut 3=Scandinavian 4=Luxury-Metal 5=Asian-Lacquer | ESC=quit\n";
+    std::cout << "Controls: WASD=orbit | Scroll=zoom | V=cycle view | 1=Mixed-PNG 2=Leather&Walnut 3=Scandinavian 4=Luxury-Metal 5=Asian-Lacquer | ESC=quit\n";
 
     // Light placed above-right of center
     glm::vec3 lightPos = center + glm::vec3(extent * 0.5f, extent * 0.8f, extent * 0.5f);
@@ -407,28 +426,54 @@ int main()
         float  dt  = (float)(now - lastTime);
         lastTime   = now;
 
-        // Orbit
-        const float speed = 60.0f;
-        if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])  camYaw   -= speed * dt;
-        if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT]) camYaw   += speed * dt;
-        if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])    camPitch += speed * dt;
-        if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])  camPitch -= speed * dt;
-        camPitch = glm::clamp(camPitch, -89.0f, 89.0f);
-
-        float yawR   = glm::radians(camYaw);
-        float pitchR = glm::radians(camPitch);
-        glm::vec3 camPos = camTarget + camRadius * glm::vec3(
-            cos(pitchR) * sin(yawR),
-            sin(pitchR),
-            cos(pitchR) * cos(yawR));
-
         int fbW, fbH;
         glfwGetFramebufferSize(window, &fbW, &fbH);
         float aspect = (float)fbW / (float)std::max(fbH, 1);
 
         glm::mat4 model      = glm::mat4(1.0f);
-        glm::mat4 view       = glm::lookAt(camPos, camTarget, glm::vec3(0, 1, 0));
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 1.0f, extent * 10.0f);
+        glm::mat4 view       = glm::mat4(1.0f);
+        glm::mat4 projection = glm::mat4(1.0f);
+        glm::vec3 camPos;
+
+        if (currentView == VIEW_FREE_ORBIT) {
+            // Orbit via WASD + scroll
+            const float speed = 60.0f;
+            if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])  camYaw   -= speed * dt;
+            if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT]) camYaw   += speed * dt;
+            if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])    camPitch += speed * dt;
+            if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])  camPitch -= speed * dt;
+            camPitch = glm::clamp(camPitch, -89.0f, 89.0f);
+
+            float yawR   = glm::radians(camYaw);
+            float pitchR = glm::radians(camPitch);
+            camPos = camTarget + camRadius * glm::vec3(
+                cos(pitchR) * sin(yawR),
+                sin(pitchR),
+                cos(pitchR) * cos(yawR));
+
+            view       = glm::lookAt(camPos, camTarget, glm::vec3(0, 1, 0));
+            projection = glm::perspective(glm::radians(45.0f), aspect, 1.0f, extent * 10.0f);
+        }
+        else if (currentView == VIEW_CINEMATIC_FRONT) {
+            // Perspektif dramatis dari depan atas, objek miring proporsional
+            camPos = center + glm::vec3(0.0f, extent * 0.5f, extent * 0.9f);
+            view   = glm::lookAt(camPos, center, glm::vec3(0, 1, 0));
+            model  = glm::rotate(model, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            projection = glm::perspective(glm::radians(45.0f), aspect, 1.0f, extent * 10.0f);
+        }
+        else if (currentView == VIEW_ARCHITECT_TOP) {
+            // Top-down bird view
+            camPos = center + glm::vec3(0.0f, extent * 1.2f, 0.001f);
+            view   = glm::lookAt(camPos, center, glm::vec3(0, 1, 0));
+            projection = glm::perspective(glm::radians(60.0f), aspect, 1.0f, extent * 10.0f);
+        }
+        else if (currentView == VIEW_CLOSEUP_SIDE) {
+            // Close-up dari sudut kanan bawah
+            camPos = center + glm::vec3(extent * 0.6f, extent * 0.1f, extent * 0.25f);
+            view   = glm::lookAt(camPos, center + glm::vec3(0, -extent * 0.05f, 0), glm::vec3(0, 1, 0));
+            model  = glm::rotate(model, glm::radians(15.0f), glm::vec3(1.0f, 0.0f, 1.0f));
+            projection = glm::perspective(glm::radians(30.0f), aspect, 1.0f, extent * 10.0f);
+        }
 
         glClearColor(0.12f, 0.12f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
